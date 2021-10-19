@@ -1,6 +1,8 @@
-cmake_minimum_required(VERSION 3.0)
+cmake_minimum_required(VERSION 3.10)
 project(WIREHEAD VERSION 2.0)
 
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_compile_options("-O3")
 add_compile_options("-march=native")
@@ -11,7 +13,7 @@ find_package(OpenGL REQUIRED)
 INCLUDE(FindPkgConfig)
 PKG_SEARCH_MODULE(SDL2 REQUIRED sdl2)
 
-add_executable(WIREHEAD main.c io/stlloader.cpp)
+add_executable(WIREHEAD main.cpp util/converter.cpp io/stlloader.cpp)
 
 # First try openxr.pc from OpenXR SDK
 include(FindPkgConfig)
@@ -42,7 +44,7 @@ target_include_directories(WIREHEAD PRIVATE ${SDL2_INCLUDE_DIR})
 if(MSVC)
   target_compile_options(WIREHEAD PRIVATE /W4 /WX)
 else(MSVC)
-  target_compile_options(WIREHEAD PRIVATE -pedantic -Wall -Wextra -Wno-unused-parameter)
+  target_compile_options(WIREHEAD PRIVATE -Wall -Wextra -Wno-unused-parameter)
 endif(MSVC)
 
 

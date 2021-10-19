@@ -3,22 +3,23 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <iostream>
 #include <unordered_map>
 #include "../util/converter.hpp"
 
 struct vec3 {
     float x,y,z;
 
-    vec3(float x=0f, float y=0f, float z=0f) : x(x), y(y), z(z) {}
+    vec3(float x=0, float y=0, float z=0) : x(x), y(y), z(z) {}
 
-    vec3& operator=(const pos& a) {
+    vec3& operator=(const vec3& a) {
         x=a.x;
         y=a.y;
         z=a.z;
         return *this;
     }
 
-    vec3& operator-(const vec3& a) const {
+    vec3 operator-(const vec3& a) const {
         return vec3(a.x-x,a.y-y,a.z-z);
     }
 };
@@ -29,11 +30,11 @@ struct STL_BINARY_TRIANGLE_DATA {
     vec3 vertex3;
     unsigned short attr;
 };
-typedef struct VERTEX_NORMAL_DATA {
+struct VERTEX_NORMAL_DATA {
     vec3 vertex;
     vec3 normal;
 };
-typedef struct STL_BINARY_FILE_DATA {
+struct STL_BINARY_FILE_DATA {
     unsigned char header[80];
     unsigned long n_triangles;
     STL_BINARY_TRIANGLE_DATA* triangles;
