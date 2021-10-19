@@ -33,6 +33,9 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_events.h>
 
+#include <unistd.h>
+#include <pthread.h>
+
 #include "camera.h"
 
 #define degrees_to_radians(angle_degrees) ((angle_degrees)*M_PI / 180.0)
@@ -485,9 +488,8 @@ int
 main(int argc, char** argv)
 {
 
-	run(argc,argv);
-
-	return 0;
+	pthread_t camera1_id;
+	pthread_create(&camera1_id, NULL, &run_camera(argc,argv)); //Start camera thread, and pass args to it
 
 
 	// Changing to HANDHELD_DISPLAY or a future form factor may work, but has not been tested.
@@ -1502,6 +1504,11 @@ main(int argc, char** argv)
 	free(depth.infos);
 
 	printf("Cleaned up!\n");
+
+	printf("Waiting for camera thread to close...\n");
+	pthread_join(camera1_id,NULL);
+	printf("Camera closed. Exiting...\n");
+	exit(0);
 }
 
 

@@ -23,6 +23,6 @@
 
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
-int run(int argc, char **argv);
+int run_camera(int argc, char **argv);
 
 #endif

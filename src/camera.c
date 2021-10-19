@@ -57,8 +57,6 @@ static void process_image(const void *p, int size)
     char num_str[10];
     sprintf(num_str, "%d", img_idx);
     const char* file_name = concat("img.nv12.", num_str);
-    printf("%s", file_name);
-    printf("\n");
 
     if (write_file) {
         FILE* out=fopen(file_name,"wb");
@@ -69,6 +67,8 @@ static void process_image(const void *p, int size)
             perror("Opening file");
         }
     }
+
+    //TODO: Add code to run interrupt on gfx thread, to set image on VR monitor...
 
 	fflush(stderr);
 	fprintf(stderr, ".");
@@ -580,7 +580,7 @@ long_options[] = {
 	{ 0, 0, 0, 0 }
 };
 
-int run(int argc, char **argv)
+int run_camera(int argc, char **argv)
 {
 	dev_name = "/dev/video0";
 
