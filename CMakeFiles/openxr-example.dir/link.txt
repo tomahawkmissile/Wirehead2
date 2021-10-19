@@ -1,0 +1,1 @@
+/usr/bin/cc   -rdynamic CMakeFiles/openxr-example.dir/main.c.o  -o openxr-example -lopenxr_loader -lpthread -lXrandr -lSM -lICE -lX11 -lXext -lGL -lGLU -lSDL2 -lm 

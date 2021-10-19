@@ -1,0 +1,7 @@
+/home/elijah/Documents/vscode/openxr-simple-example-master/CMakeFiles/install/strip.dir
+/home/elijah/Documents/vscode/openxr-simple-example-master/CMakeFiles/edit_cache.dir
+/home/elijah/Documents/vscode/openxr-simple-example-master/CMakeFiles/openxr-example.dir
+/home/elijah/Documents/vscode/openxr-simple-example-master/CMakeFiles/install.dir
+/home/elijah/Documents/vscode/openxr-simple-example-master/CMakeFiles/rebuild_cache.dir
+/home/elijah/Documents/vscode/openxr-simple-example-master/CMakeFiles/list_install_components.dir
+/home/elijah/Documents/vscode/openxr-simple-example-master/CMakeFiles/install/local.dir
