@@ -33,6 +33,8 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_events.h>
 
+#include "camera.h"
+
 #define degrees_to_radians(angle_degrees) ((angle_degrees)*M_PI / 180.0)
 #define radians_to_degrees(angle_radians) ((angle_radians)*180.0 / M_PI)
 
@@ -482,6 +484,12 @@ load_extension_function_pointers(XrInstance instance)
 int
 main(int argc, char** argv)
 {
+
+	run(argc,argv);
+
+	return 0;
+
+
 	// Changing to HANDHELD_DISPLAY or a future form factor may work, but has not been tested.
 	XrFormFactor form_factor = XR_FORM_FACTOR_HEAD_MOUNTED_DISPLAY;
 

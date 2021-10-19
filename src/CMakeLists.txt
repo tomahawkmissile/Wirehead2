@@ -11,7 +11,7 @@ find_package(OpenGL REQUIRED)
 INCLUDE(FindPkgConfig)
 PKG_SEARCH_MODULE(SDL2 REQUIRED sdl2)
 
-add_executable(openxr-example main.c)
+add_executable(openxr-example main.c camera.c)
 
 # First try openxr.pc from OpenXR SDK
 include(FindPkgConfig)
