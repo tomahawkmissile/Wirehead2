@@ -1,11 +1,9 @@
-cmake_minimum_required(VERSION 3.10)
-project(WIREHEAD VERSION 2.0)
+cmake_minimum_required(VERSION 3.0)
+project(openxr-example)
 
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-add_compile_options("-O3")
-add_compile_options("-march=native")
+if (POLICY CMP0072)
+  cmake_policy (SET CMP0072 NEW)
+endif(POLICY CMP0072)
 
 find_package(X11 REQUIRED)
 find_package(OpenGL REQUIRED)
@@ -13,14 +11,14 @@ find_package(OpenGL REQUIRED)
 INCLUDE(FindPkgConfig)
 PKG_SEARCH_MODULE(SDL2 REQUIRED sdl2)
 
-add_executable(WIREHEAD main.cpp util/converter.cpp io/stlloader.cpp)
+add_executable(openxr-example main.c)
 
 # First try openxr.pc from OpenXR SDK
 include(FindPkgConfig)
 pkg_search_module(OPENXR openxr)
 if (OPENXR_FOUND)
   MESSAGE("OpenXR found with pkg-config")
-  target_link_libraries(WIREHEAD PRIVATE ${OPENXR_LIBRARIES})
+  target_link_libraries(openxr-example PRIVATE ${OPENXR_LIBRARIES})
 
 # Second, try OpenXRConfig.cmake from OpenXR SDK
 else()
@@ -34,18 +32,18 @@ else()
      MESSAGE(FATAL_ERROR "OpenXR not found!")
   endif()
 
-  target_include_directories(WIREHEAD PRIVATE ${OpenXR_INCLUDE_DIR})
-  target_link_libraries(WIREHEAD PRIVATE OpenXR::openxr_loader)
+  target_include_directories(openxr-example PRIVATE ${OpenXR_INCLUDE_DIR})
+  target_link_libraries(openxr-example PRIVATE OpenXR::openxr_loader)
 endif()
 
-target_link_libraries(WIREHEAD PRIVATE Xrandr ${X11_LIBRARIES} ${OPENGL_LIBRARIES} ${SDL2_LIBRARIES} m)
-target_include_directories(WIREHEAD PRIVATE ${SDL2_INCLUDE_DIR})
+target_link_libraries(openxr-example PRIVATE Xrandr ${X11_LIBRARIES} ${OPENGL_LIBRARIES} ${SDL2_LIBRARIES} m)
+target_include_directories(openxr-example PRIVATE ${SDL2_INCLUDE_DIR})
 
 if(MSVC)
-  target_compile_options(WIREHEAD PRIVATE /W4 /WX)
+  target_compile_options(openxr-example PRIVATE /W4 /WX)
 else(MSVC)
-  target_compile_options(WIREHEAD PRIVATE -Wall -Wextra -Wno-unused-parameter)
+  target_compile_options(openxr-example PRIVATE -pedantic -Wall -Wextra -Wno-unused-parameter)
 endif(MSVC)
 
 
-install(TARGETS WIREHEAD RUNTIME DESTINATION bin)
+install(TARGETS openxr-example RUNTIME DESTINATION bin)
