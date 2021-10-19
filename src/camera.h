@@ -19,6 +19,8 @@
 
 #include <linux/videodev2.h>
 
+#include "util/strings.h"
+
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
 int run(int argc, char **argv);

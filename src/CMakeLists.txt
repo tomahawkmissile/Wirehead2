@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0)
 project(openxr-example)
 
+set(CMAKE_BUILD_TYPE RelWithDebInfo)
+
 if (POLICY CMP0072)
   cmake_policy (SET CMP0072 NEW)
 endif(POLICY CMP0072)
@@ -11,7 +13,7 @@ find_package(OpenGL REQUIRED)
 INCLUDE(FindPkgConfig)
 PKG_SEARCH_MODULE(SDL2 REQUIRED sdl2)
 
-add_executable(openxr-example main.c camera.c)
+add_executable(openxr-example main.c camera.c util/strings.c)
 
 # First try openxr.pc from OpenXR SDK
 include(FindPkgConfig)

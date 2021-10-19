@@ -25,8 +25,8 @@ static enum io_method   io = IO_METHOD_MMAP;
 static int              fd = -1;
 struct buffer          *buffers;
 static unsigned int     n_buffers;
-static int		out_buf;
-static int      write_file;
+static int		out_buf=0;
+static int      write_file=0;
 static int              force_format;
 static int              frame_count = 70;
 
@@ -47,14 +47,24 @@ static int xioctl(int fh, unsigned long int request, void *arg)
 	return r;
 }
 
+static int img_idx=0;
 static void process_image(const void *p, int size)
 {
-	if (out_buf)
+	if (out_buf) {
 		fwrite(p, size, 1, stdout);
+    }
+
+    char num_str[10];
+    sprintf(num_str, "%d", img_idx);
+    const char* file_name = concat("img.nv12.", num_str);
+    printf("%s", file_name);
+    printf("\n");
+
     if (write_file) {
-        FILE* out=fopen("img.nv12","w");
+        FILE* out=fopen(file_name,"wb");
         if(out != NULL) {
             fwrite(p, size, 1, out);
+            img_idx++;
         } else {
             perror("Opening file");
         }
@@ -554,7 +564,7 @@ static void usage(FILE *fp, int argc, char **argv)
 		 argv[0], dev_name, frame_count);
 }
 
-static const char short_options[] = "d:hmruofc:";
+static const char short_options[] = "d:hmruowfc:";
 
 static const struct option
 long_options[] = {
