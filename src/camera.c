@@ -9,17 +9,6 @@
  * see http://linuxtv.org/docs.php for more information
  */
 
-enum io_method {
-	IO_METHOD_READ,
-	IO_METHOD_MMAP,
-	IO_METHOD_USERPTR,
-};
-
-struct buffer {
-	void   *start;
-	size_t  length;
-};
-
 static char            *dev_name;
 static enum io_method   io = IO_METHOD_MMAP;
 static int              fd = -1;
@@ -29,6 +18,13 @@ static int		out_buf=0;
 static int      write_file=0;
 static int              force_format;
 static int              frame_count = 70;
+
+bool camera_buf_rdy() {
+	return buffers[n_buffers-1].ready;
+}
+struct buffer camera_buf_get_last() {
+	return buffers[n_buffers-1];
+}
 
 static void errno_exit(const char *s)
 {
@@ -49,16 +45,21 @@ static int xioctl(int fh, unsigned long int request, void *arg)
 
 static int img_idx=0;
 static void process_image(const void *p, int size)
-{
+{ //Uses last buffer in array to process
 	if (out_buf) {
 		fwrite(p, size, 1, stdout);
     }
 
-    char num_str[10];
-    sprintf(num_str, "%d", img_idx);
-    const char* file_name = concat("img.nv12.", num_str);
+	//TEMPORARY: set width and height of screen for buffer obj
+	//TODO: change this to get it from V4L2
+	buffers[n_buffers-1].screen_width=640;
+	buffers[n_buffers-1].screen_height=480;
 
     if (write_file) {
+		char num_str[10];
+		sprintf(num_str, "%d", img_idx);
+		const char* file_name = concat("img.nv12.", num_str);
+
         FILE* out=fopen(file_name,"wb");
         if(out != NULL) {
             fwrite(p, size, 1, out);
@@ -68,10 +69,10 @@ static void process_image(const void *p, int size)
         }
     }
 
-    //TODO: Add code to run interrupt on gfx thread, to set image on VR monitor...
+	buffers[n_buffers-1].ready=1;
 
 	fflush(stderr);
-	fprintf(stderr, ".");
+	//fprintf(stderr, ".");
 	fflush(stdout);
 }
 
@@ -485,6 +486,7 @@ static void init_device(void)
 	if (force_format) {
 		fmt.fmt.pix.width       = 640;
 		fmt.fmt.pix.height      = 480;
+
 		fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_YUYV;
 		fmt.fmt.pix.field       = V4L2_FIELD_INTERLACED;
 
@@ -654,4 +656,6 @@ void* run_camera(void* input)
 	uninit_device();
 	close_device();
 	fprintf(stderr, "\n");
+
+	return 0;
 }

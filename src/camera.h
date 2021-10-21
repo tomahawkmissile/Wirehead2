@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <stdbool.h>
 
 #include <getopt.h>             /* getopt_long() */
 
@@ -22,7 +23,23 @@
 #include "util/strings.h"
 #include "util/universal_structs.h"
 
+enum io_method {
+	IO_METHOD_READ,
+	IO_METHOD_MMAP,
+	IO_METHOD_USERPTR,
+};
+
+struct buffer {
+	void   *start;
+	size_t  length;
+	int screen_width,screen_height;
+	bool ready;
+};
+
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
+
+bool camera_buf_rdy();
+struct buffer camera_buf_get_last();
 
 void* run_camera(void* input);
 

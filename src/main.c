@@ -1820,6 +1820,41 @@ render_frame(int w,
 		render_rotated_cube(vec3(-dist, height, 0), .33f, angle, projectionmatrix.m, modelLoc);
 	}
 
+	//render image in front
+	{
+
+		//Retrieve buffer
+		struct buffer latest_buf = camera_buf_get_last();
+		while(latest_buf.ready == 0); //Wait until the buffer is ready
+		//Now buffer is ready to be used and displayed...
+		//printf("Buffer ready;\n");
+		//printf("Length: %lu\n", (long unsigned int)latest_buf.length);
+
+		//Setup screen
+		GLuint screen_buffer;
+		glGenFramebuffers(1, &screen_buffer);
+		glBindFramebuffer(GL_FRAMEBUFFER, screen_buffer);
+
+		//Init texture objects
+		GLuint texture1;
+		glGenTextures(1, &texture1);
+		glBindTexture(GL_TEXTURE_2D, texture1);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, latest_buf.screen_width, latest_buf.screen_height, 0, GL_RGBA8, GL_UNSIGNED_BYTE, (GLvoid*)latest_buf.start);
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		//Generate PBO
+		GLuint pbo1;
+		glGenBuffers(1, pbo1);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo1);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, latest_buf.length, 0, GL_STREAM_DRAW);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+	}
+
 	// render controllers
 	for (int hand = 0; hand < 2; hand++) {
 		if (hand == 0) {
