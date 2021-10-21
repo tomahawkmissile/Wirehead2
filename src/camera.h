@@ -20,9 +20,10 @@
 #include <linux/videodev2.h>
 
 #include "util/strings.h"
+#include "util/universal_structs.h"
 
 #define CLEAR(x) memset(&(x), 0, sizeof(x))
 
-int run_camera(int argc, char **argv);
+void* run_camera(void* input);
 
 #endif

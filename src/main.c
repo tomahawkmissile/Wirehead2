@@ -487,9 +487,12 @@ load_extension_function_pointers(XrInstance instance)
 int
 main(int argc, char** argv)
 {
-
+	#include "util/universal_structs.h"
+	struct args* Args = (struct args*)malloc(sizeof(struct args));
+	Args->argc=argc;
+	Args->argv=argv;
 	pthread_t camera1_id;
-	pthread_create(&camera1_id, NULL, &run_camera(argc,argv)); //Start camera thread, and pass args to it
+	pthread_create(&camera1_id, NULL, run_camera, (void*)Args); //Start camera thread, and pass args to it
 
 
 	// Changing to HANDHELD_DISPLAY or a future form factor may work, but has not been tested.

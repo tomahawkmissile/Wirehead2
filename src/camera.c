@@ -580,8 +580,11 @@ long_options[] = {
 	{ 0, 0, 0, 0 }
 };
 
-int run_camera(int argc, char **argv)
+void* run_camera(void* input)
 {
+	int argc = ((struct args*)input)->argc;
+	char** argv = ((struct args*)input)->argv;
+
 	dev_name = "/dev/video0";
 
 	for (;;) {
@@ -651,5 +654,4 @@ int run_camera(int argc, char **argv)
 	uninit_device();
 	close_device();
 	fprintf(stderr, "\n");
-	return 0;
 }
