@@ -1595,36 +1595,6 @@ init_sdl_window(Display** xDisplay,
 	return true;
 }
 
-
-static const char* vertexshader =
-    "#version 330 core\n"
-    "#extension GL_ARB_explicit_uniform_location : require\n"
-    "layout(location = 0) in vec3 aPos;\n"
-    "layout(location = 2) uniform mat4 model;\n"
-    "layout(location = 3) uniform mat4 view;\n"
-    "layout(location = 4) uniform mat4 proj;\n"
-    "layout(location = 5) in vec2 aColor;\n"
-    "out vec2 vertexColor;\n"
-    "void main() {\n"
-    "	gl_Position = proj * view * model * vec4(aPos.x, aPos.y, aPos.z, "
-    "1.0);\n"
-    "	vertexColor = aColor;\n"
-    "}\n";
-
-static const char* fragmentshader =
-    "#version 330 core\n"
-    "#extension GL_ARB_explicit_uniform_location : require\n"
-    "layout(location = 0) out vec4 FragColor;\n"
-    "layout(location = 1) uniform vec3 uniformColor;\n"
-    "in vec2 vertexColor;\n"
-    "void main() {\n"
-    "	FragColor = (uniformColor.x < 0.01 && uniformColor.y < 0.01 && "
-    "uniformColor.z < 0.01) ? vec4(vertexColor, 1.0, 1.0) : vec4(uniformColor, "
-    "1.0);\n"
-    "}\n";
-
-
-
 int
 init_gl(uint32_t view_count,
         uint32_t* swapchain_lengths,
@@ -1646,8 +1616,10 @@ init_gl(uint32_t view_count,
 
 	GLuint vertex_shader_id = glCreateShader(GL_VERTEX_SHADER);
 	const GLchar* vertex_shader_source[1];
-	vertex_shader_source[0] = vertexshader;
-	// printf("Vertex Shader:\n%s\n", vertexShaderSource);
+	char* vertexBuffer = readFromFile("../src/shader/vertex.glsl");
+	vertex_shader_source[0] = vertexBuffer;
+
+	// printf("Vertex Shader:\n%s\n", vertexBuffer);
 	glShaderSource(vertex_shader_id, 1, vertex_shader_source, NULL);
 	glCompileShader(vertex_shader_id);
 	int vertex_compile_res;
@@ -1663,7 +1635,10 @@ init_gl(uint32_t view_count,
 
 	GLuint fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER);
 	const GLchar* fragment_shader_source[1];
-	fragment_shader_source[0] = fragmentshader;
+	char* fragmentBuffer = readFromFile("../src/shader/fragment.glsl");
+	fragment_shader_source[0] = fragmentBuffer;
+
+	// printf("Fragment Shader:\n%s\n", fragmentBuffer);
 	glShaderSource(fragment_shader_id, 1, fragment_shader_source, NULL);
 	glCompileShader(fragment_shader_id);
 	int fragment_compile_res;
@@ -1848,7 +1823,7 @@ render_frame(int w,
 
 		//Generate PBO
 		GLuint pbo1;
-		glGenBuffers(1, pbo1);
+		glGenBuffers(1, &pbo1);
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo1);
 		glBufferData(GL_PIXEL_UNPACK_BUFFER, latest_buf.length, 0, GL_STREAM_DRAW);
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
