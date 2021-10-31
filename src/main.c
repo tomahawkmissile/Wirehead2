@@ -484,6 +484,10 @@ load_extension_function_pointers(XrInstance instance)
 	return true;
 }
 
+
+static GLuint imageFBO;
+static GLuint imageTextureID;
+
 int
 main(int argc, char** argv)
 {
@@ -1482,6 +1486,8 @@ main(int argc, char** argv)
 
 	// --- Clean up after render loop quits
 
+	glDeleteFramebuffers(1, &imageFBO);
+
 	for (uint32_t i = 0; i < view_count; i++) {
 		free(images[i]);
 		if (depth.supported) {
@@ -1709,6 +1715,15 @@ init_gl(uint32_t view_count,
 	glVertexAttribPointer(5, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(5);
 
+	//Init webcam image texture
+	glGenTextures(1, &imageTextureID);
+
+	//Init image from webcam
+	glGenFramebuffers(1, &imageFBO);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, imageFBO);
+	glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, imageTextureID, 0);
+	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
 	glEnable(GL_DEPTH_TEST);
 
 	return 0;
@@ -1796,7 +1811,8 @@ render_frame(int w,
 	}
 
 	//render image in front
-	{
+	bool render_image = false;
+	if(render_image) {
 
 		//Retrieve buffer
 		struct buffer latest_buf = camera_buf_get_last();
@@ -1805,6 +1821,23 @@ render_frame(int w,
 		//printf("Buffer ready;\n");
 		//printf("Length: %lu\n", (long unsigned int)latest_buf.length);
 
+		int framebuffer_width = latest_buf.screen_width;
+		int framebuffer_height = latest_buf.screen_height;
+
+		//Set texture
+		glBindTexture(GL_TEXTURE_2D, imageTextureID);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_BGR, GL_UNSIGNED_BYTE, latest_buf.start);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		//Bind image FBO and update it with current image. Draw buffer is 0 (default)
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, imageFBO);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		glBlitFramebuffer(0, 0, framebuffer_width, framebuffer_height, 0, 0, framebuffer_width, framebuffer_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
+		/*
 		//Setup screen
 		GLuint screen_buffer;
 		glGenFramebuffers(1, &screen_buffer);
@@ -1827,6 +1860,7 @@ render_frame(int w,
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo1);
 		glBufferData(GL_PIXEL_UNPACK_BUFFER, latest_buf.length, 0, GL_STREAM_DRAW);
 		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+		*/
 
 	}
 
