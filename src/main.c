@@ -1772,42 +1772,50 @@ render_frame(int w,
 	bool render_image = true;
 	if(render_image) {
 
+		//Render the canvas to paint to
 		render_screen_canvas(vec3(0, 0, -1), 0.0, (float)640/480, 0.66, projectionmatrix.m, modelLoc);
 
 		//Retrieve buffer
 		struct buffer latest_buf = camera_buf_get_last();
 		struct buffer previous_buf = camera_buf_get_previous();
 		clock_t startTime = clock();
-		time_t endWait = startTime + (CLOCKS_PER_SEC*0.125);
+		time_t endWait = startTime + (CLOCKS_PER_SEC*0.25);
 		while(latest_buf.ready == 0) {
 			//Wait until the buffer is ready
-			printf("Buffer not ready. Waiting...\n");
+			printf("[DEBUG] Buffer not ready. Waiting...\n");
 			if((clock() > endWait)) {
-				printf("New buffer timeout reached. Using previous buffer.\n");
+				printf("[WARN] New buffer timeout reached. Using previous buffer.\n");
 				break;
 			}
 		}
 
-		if(latest_buf.ready == 0) latest_buf = previous_buf;
-		//Debug for checking image buffer
-		//printf("Buffer ready;\n");
-		//printf("Length: %lu\n", (long unsigned int)latest_buf.length);
-		int framebuffer_width = latest_buf.screen_width;
-		int framebuffer_height = latest_buf.screen_height;
-		printf("pretexture\n");
-		//Set texture
-		glBindTexture(GL_TEXTURE_2D, textureID);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, latest_buf.start);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glBindTexture(GL_TEXTURE_2D, 0);
-		printf("textured\n");
-		//Bind image FBO and update it with current image. Draw buffer is 0 (default)
-		//glBindFramebuffer(GL_READ_FRAMEBUFFER, imageFBO);
-		//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-		//glBlitFramebuffer(0, 0, framebuffer_width, framebuffer_height, 0, 0, framebuffer_width, framebuffer_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-		//glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+		if(latest_buf.ready == 0) latest_buf = previous_buf; //If latest buffer is not ready, use the previous one
+		if(latest_buf.ready == 1) { //Now that we have the ready buffer, if it still is not ready (usually this only occurs on startup), pass this code block and wait for next loop iteration
+			int framebuffer_width = latest_buf.screen_width;
+			int framebuffer_height = latest_buf.screen_height;
+			printf("[DEBUG] -------\n");
+			printf("[DEBUG] Buffer stats:\n");
+			printf("[DEBUG] Width: %lu\n", latest_buf.screen_width);
+			printf("[DEBUG] Height: %lu\n", latest_buf.screen_height);
+			printf("[DEBUG] Length: %zu\n", latest_buf.length);
+			printf("[DEBUG] Ready: "); printf(latest_buf.ready ? "true\n" : "false\n");
+			printf("[DEBUG] -------\n");
 
+			//Set texture
+			glBindTexture(GL_TEXTURE_2D, textureID);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, latest_buf.start); //<-- segfault here 
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+			glBindTexture(GL_TEXTURE_2D, 0);
+
+			//Bind image FBO and update it with current image. Draw buffer is 0 (default)
+			//glBindFramebuffer(GL_READ_FRAMEBUFFER, imageFBO);
+			//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+			//glBlitFramebuffer(0, 0, framebuffer_width, framebuffer_height, 0, 0, framebuffer_width, framebuffer_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+			//glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+		} else {
+			printf("[WARN] Buffer is still not ready. Skipping this iteration...\n");
+		}
 	}
 
 	/*

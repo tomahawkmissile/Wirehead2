@@ -17,7 +17,7 @@ static unsigned int     n_buffers;
 static int		out_buf=0;
 static int      write_file=0;
 static int              force_format;
-static int              frame_count = 70;
+static int              frame_count = 100;
 
 bool camera_buf_rdy() {
 	return buffers[n_buffers-1].ready;
@@ -52,7 +52,8 @@ static int xioctl(int fh, unsigned long int request, void *arg)
 
 static int img_idx=0;
 static void process_image(const void *p, int size)
-{ //Uses last buffer in array to process
+{
+	//Uses last buffer in array to process
 	if (out_buf) {
 		fwrite(p, size, 1, stdout);
     }
@@ -79,7 +80,6 @@ static void process_image(const void *p, int size)
 	buffers[n_buffers-1].ready=1;
 
 	fflush(stderr);
-	//fprintf(stderr, ".");
 	fflush(stdout);
 }
 
@@ -199,11 +199,11 @@ static void mainloop(void)
 			if (-1 == r) {
 				if (EINTR == errno)
 					continue;
-				errno_exit("select");
+				errno_exit("[ERROR] Select function returned invalid value\n");
 			}
 
 			if (0 == r) {
-				fprintf(stderr, "select timeout\n");
+				fprintf(stderr, "[ERROR] Select functon timed out\n");
 				exit(EXIT_FAILURE);
 			}
 
@@ -286,7 +286,7 @@ static void uninit_device(void)
 
 	switch (io) {
 	case IO_METHOD_READ:
-		free(buffers[0].start);
+		free((void*)buffers[0].start);
 		break;
 
 	case IO_METHOD_MMAP:
