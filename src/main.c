@@ -8,6 +8,7 @@
 
 #include <stdio.h>
 #include <stdbool.h>
+#include <time.h>
 
 #ifdef __linux__
 
@@ -1601,6 +1602,16 @@ init_sdl_window(Display** xDisplay,
 	return true;
 }
 
+struct buffer latest_buf;
+
+GLuint canvas_vao;
+GLuint canvas_vbo;
+
+float screen_vertex_data[] = {
+					-4.0f, 0.0f, -0.5f, 4.0f, 0.0f, -0.5f, 4.0f, 3.0f, -0.5f, 
+					-4.0f, 0.0f, -0.5f, 4.0f, 3.0f, -0.5f, -4.0f, 3.0f, -0.5f
+};
+
 int
 init_gl(uint32_t view_count,
         uint32_t* swapchain_lengths,
@@ -1698,14 +1709,17 @@ init_gl(uint32_t view_count,
 
 	                    -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
 	                    0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-	                    -0.5f, 0.5f,  0.5f,  0.0f, 0.0f, -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f};
+	                    -0.5f, 0.5f,  0.5f,  0.0f, 0.0f, -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f
+	};
 
+	//Cubes
 	GLuint VBOs[1];
 	glGenBuffers(1, VBOs);
 
 	glGenVertexArrays(1, VAO);
-
 	glBindVertexArray(*VAO);
+
+
 	glBindBuffer(GL_ARRAY_BUFFER, VBOs[0]);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
@@ -1714,17 +1728,30 @@ init_gl(uint32_t view_count,
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
 	glVertexAttribPointer(5, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 	glEnableVertexAttribArray(5);
+	//End cubes
 
-	//Init webcam image texture
-	glGenTextures(1, &imageTextureID);
+	//Generate canvas
+	glGenBuffers(1, &canvas_vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, canvas_vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(screen_vertex_data), screen_vertex_data, GL_STATIC_DRAW);
+	glVertexAttribPointer(6, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(6);
 
-	//Init image from webcam
-	glGenFramebuffers(1, &imageFBO);
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, imageFBO);
-	glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, imageTextureID, 0);
-	glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	//Init webcam image texture and image
+	//glGenTextures(1, &imageTextureID);
+	//glBindTexture(GL_TEXTURE_2D, imageTextureID);
+
+	//glGenFramebuffers(1, &imageFBO);
+	//glBindFramebuffer(GL_READ_FRAMEBUFFER, imageFBO);
+	//glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, imageTextureID, 0);
+
+	//Unbind
+	//glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+	//glBindTexture(GL_TEXTURE_2D, 0);
 
 	glEnable(GL_DEPTH_TEST);
+
+	latest_buf = camera_buf_get_last();
 
 	return 0;
 }
@@ -1749,6 +1776,21 @@ render_rotated_cube(
 
 	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*)modelmatrix.m);
 	glDrawArrays(GL_TRIANGLES, 0, 36);
+}
+void
+render_screen_canvas(vec3_t position, float rotation, float* projection_matrix, int modelLoc) {
+	
+	mat4_t rotationmatrix = m4_rotation_y(degrees_to_radians(rotation));
+	mat4_t modelmatrix = m4_mul(m4_translation(position), m4_scaling(vec3(1,1,1)));
+	modelmatrix = m4_mul(modelmatrix, rotationmatrix);
+
+	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*)modelmatrix.m);
+
+	glEnableVertexAttribArray(6);
+	glBindBuffer(GL_ARRAY_BUFFER, canvas_vbo);
+	glVertexAttribPointer(6, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+	glDrawArrays(GL_TRIANGLES, 0, 3*sizeof(screen_vertex_data)/sizeof(float));
+	glDisableVertexAttribArray(6);
 }
 
 void
@@ -1793,6 +1835,9 @@ render_frame(int w,
 	glUniformMatrix4fv(projLoc, 1, GL_FALSE, (float*)projectionmatrix.m);
 
 
+	float dist = 1.5f;
+	float height = 0.5f;
+
 	// render scene with 4 colorful cubes
 	{
 		// the special color value (0, 0, 0) will get replaced by some UV color in the shader
@@ -1802,8 +1847,6 @@ render_frame(int w,
 		const float rotations_per_sec = .25;
 		float angle = ((long)(display_time_seconds * 360. * rotations_per_sec)) % 360;
 
-		float dist = 1.5f;
-		float height = 0.5f;
 		render_rotated_cube(vec3(0, height, -dist), .33f, angle, projectionmatrix.m, modelLoc);
 		render_rotated_cube(vec3(0, height, dist), .33f, angle, projectionmatrix.m, modelLoc);
 		render_rotated_cube(vec3(dist, height, 0), .33f, angle, projectionmatrix.m, modelLoc);
@@ -1811,56 +1854,44 @@ render_frame(int w,
 	}
 
 	//render image in front
-	bool render_image = false;
+	bool render_image = true;
 	if(render_image) {
 
+		render_screen_canvas(vec3(0, 0, 0), 0.0, projectionmatrix.m, modelLoc);
+
+		/*
 		//Retrieve buffer
 		struct buffer latest_buf = camera_buf_get_last();
-		while(latest_buf.ready == 0); //Wait until the buffer is ready
-		//Now buffer is ready to be used and displayed...
+		time_t endWait = time(NULL) + 1;
+		while((latest_buf.ready == 0)) {
+			//Wait until the buffer is ready
+			printf("Buffer not ready. Waiting...\n");
+			if((time(NULL) < endWait)) {
+				printf("New buffer timeout reached. Using previous buffer.\n");
+				latest_buf = camera_buf_get_previous();
+				break;
+			}
+		}
+		*/
+		//Debug for checking image buffer
 		//printf("Buffer ready;\n");
 		//printf("Length: %lu\n", (long unsigned int)latest_buf.length);
 
 		int framebuffer_width = latest_buf.screen_width;
 		int framebuffer_height = latest_buf.screen_height;
-
+		/*
 		//Set texture
 		glBindTexture(GL_TEXTURE_2D, imageTextureID);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_BGR, GL_UNSIGNED_BYTE, latest_buf.start);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, latest_buf.start);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glBindTexture(GL_TEXTURE_2D, 0);
-
-		//Bind image FBO and update it with current image. Draw buffer is 0 (default)
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, imageFBO);
-		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-		glBlitFramebuffer(0, 0, framebuffer_width, framebuffer_height, 0, 0, framebuffer_width, framebuffer_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-
-		/*
-		//Setup screen
-		GLuint screen_buffer;
-		glGenFramebuffers(1, &screen_buffer);
-		glBindFramebuffer(GL_FRAMEBUFFER, screen_buffer);
-
-		//Init texture objects
-		GLuint texture1;
-		glGenTextures(1, &texture1);
-		glBindTexture(GL_TEXTURE_2D, texture1);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, latest_buf.screen_width, latest_buf.screen_height, 0, GL_RGBA8, GL_UNSIGNED_BYTE, (GLvoid*)latest_buf.start);
-		glBindTexture(GL_TEXTURE_2D, 0);
-
-		//Generate PBO
-		GLuint pbo1;
-		glGenBuffers(1, &pbo1);
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo1);
-		glBufferData(GL_PIXEL_UNPACK_BUFFER, latest_buf.length, 0, GL_STREAM_DRAW);
-		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 		*/
+		//Bind image FBO and update it with current image. Draw buffer is 0 (default)
+		//glBindFramebuffer(GL_READ_FRAMEBUFFER, imageFBO);
+		//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+		//glBlitFramebuffer(0, 0, framebuffer_width, framebuffer_height, 0, 0, framebuffer_width, framebuffer_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+		//glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
 	}
 

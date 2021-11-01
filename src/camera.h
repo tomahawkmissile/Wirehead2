@@ -40,6 +40,7 @@ struct buffer {
 
 bool camera_buf_rdy();
 struct buffer camera_buf_get_last();
+struct buffer camera_buf_get_previous();
 
 void* run_camera(void* input);
 

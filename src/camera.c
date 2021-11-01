@@ -25,6 +25,13 @@ bool camera_buf_rdy() {
 struct buffer camera_buf_get_last() {
 	return buffers[n_buffers-1];
 }
+struct buffer camera_buf_get_previous() {
+	if((signed int)n_buffers-2 < 0) {
+		printf("Invalid camera buffer index requested. Returning latest buffer instead.\n");
+		return camera_buf_get_last();
+	}
+	return buffers[n_buffers-2];
+}
 
 static void errno_exit(const char *s)
 {
