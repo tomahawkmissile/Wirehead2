@@ -485,10 +485,6 @@ load_extension_function_pointers(XrInstance instance)
 	return true;
 }
 
-
-static GLuint imageFBO;
-static GLuint imageTextureID;
-
 int
 main(int argc, char** argv)
 {
@@ -1487,7 +1483,7 @@ main(int argc, char** argv)
 
 	// --- Clean up after render loop quits
 
-	glDeleteFramebuffers(1, &imageFBO);
+	//glDeleteFramebuffers(1, &imageFBO);
 
 	for (uint32_t i = 0; i < view_count; i++) {
 		free(images[i]);
@@ -1604,12 +1600,11 @@ init_sdl_window(Display** xDisplay,
 
 struct buffer latest_buf;
 
-GLuint canvas_vao;
 GLuint canvas_vbo;
 
 float screen_vertex_data[] = {
-					-4.0f, 0.0f, -0.5f, 4.0f, 0.0f, -0.5f, 4.0f, 3.0f, -0.5f, 
-					-4.0f, 0.0f, -0.5f, 4.0f, 3.0f, -0.5f, -4.0f, 3.0f, -0.5f
+					-1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 
+					-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f
 };
 
 int
@@ -1687,48 +1682,8 @@ init_gl(uint32_t view_count,
 	glDeleteShader(vertex_shader_id);
 	glDeleteShader(fragment_shader_id);
 
-	float vertices[] = {-0.5f, -0.5f, -0.5f, 0.0f, 0.0f, 0.5f,  -0.5f, -0.5f, 1.0f, 0.0f,
-	                    0.5f,  0.5f,  -0.5f, 1.0f, 1.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
-	                    -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f, -0.5f, -0.5f, -0.5f, 0.0f, 0.0f,
-
-	                    -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, 0.5f,  -0.5f, 0.5f,  1.0f, 0.0f,
-	                    0.5f,  0.5f,  0.5f,  1.0f, 1.0f, 0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
-	                    -0.5f, 0.5f,  0.5f,  0.0f, 1.0f, -0.5f, -0.5f, 0.5f,  0.0f, 0.0f,
-
-	                    -0.5f, 0.5f,  0.5f,  1.0f, 0.0f, -0.5f, 0.5f,  -0.5f, 1.0f, 1.0f,
-	                    -0.5f, -0.5f, -0.5f, 0.0f, 1.0f, -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
-	                    -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, -0.5f, 0.5f,  0.5f,  1.0f, 0.0f,
-
-	                    0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
-	                    0.5f,  -0.5f, -0.5f, 0.0f, 1.0f, 0.5f,  -0.5f, -0.5f, 0.0f, 1.0f,
-	                    0.5f,  -0.5f, 0.5f,  0.0f, 0.0f, 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-
-	                    -0.5f, -0.5f, -0.5f, 0.0f, 1.0f, 0.5f,  -0.5f, -0.5f, 1.0f, 1.0f,
-	                    0.5f,  -0.5f, 0.5f,  1.0f, 0.0f, 0.5f,  -0.5f, 0.5f,  1.0f, 0.0f,
-	                    -0.5f, -0.5f, 0.5f,  0.0f, 0.0f, -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
-
-	                    -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f, 0.5f,  0.5f,  -0.5f, 1.0f, 1.0f,
-	                    0.5f,  0.5f,  0.5f,  1.0f, 0.0f, 0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
-	                    -0.5f, 0.5f,  0.5f,  0.0f, 0.0f, -0.5f, 0.5f,  -0.5f, 0.0f, 1.0f
-	};
-
-	//Cubes
-	GLuint VBOs[1];
-	glGenBuffers(1, VBOs);
-
 	glGenVertexArrays(1, VAO);
 	glBindVertexArray(*VAO);
-
-
-	glBindBuffer(GL_ARRAY_BUFFER, VBOs[0]);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(0);
-
-	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_DYNAMIC_DRAW);
-	glVertexAttribPointer(5, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-	glEnableVertexAttribArray(5);
-	//End cubes
 
 	//Generate canvas
 	glGenBuffers(1, &canvas_vbo);
@@ -1736,6 +1691,8 @@ init_gl(uint32_t view_count,
 	glBufferData(GL_ARRAY_BUFFER, sizeof(screen_vertex_data), screen_vertex_data, GL_STATIC_DRAW);
 	glVertexAttribPointer(6, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(6);
+
+	
 
 	//Init webcam image texture and image
 	//glGenTextures(1, &imageTextureID);
@@ -1755,42 +1712,19 @@ init_gl(uint32_t view_count,
 
 	return 0;
 }
-
-static void
-render_block(XrVector3f* position, XrQuaternionf* orientation, XrVector3f* radi, int modelLoc)
-{
-	XrMatrix4x4f model_matrix;
-	XrMatrix4x4f_CreateModelMatrix(&model_matrix, position, orientation, radi);
-	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*)model_matrix.m);
-	glDrawArrays(GL_TRIANGLES, 0, 36);
-}
-
 void
-render_rotated_cube(
-    vec3_t position, float cube_size, float rotation, float* projection_matrix, int modelLoc)
-{
-	mat4_t rotationmatrix = m4_rotation_y(degrees_to_radians(rotation));
-	mat4_t modelmatrix = m4_mul(m4_translation(position),
-	                            m4_scaling(vec3(cube_size / 2., cube_size / 2., cube_size / 2.)));
-	modelmatrix = m4_mul(modelmatrix, rotationmatrix);
-
-	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*)modelmatrix.m);
-	glDrawArrays(GL_TRIANGLES, 0, 36);
-}
-void
-render_screen_canvas(vec3_t position, float rotation, float* projection_matrix, int modelLoc) {
+render_screen_canvas(vec3_t position, float rotation, float aspect_ratio, float scale, float* projection_matrix, int modelLoc) {
 	
 	mat4_t rotationmatrix = m4_rotation_y(degrees_to_radians(rotation));
-	mat4_t modelmatrix = m4_mul(m4_translation(position), m4_scaling(vec3(1,1,1)));
+	mat4_t modelmatrix = m4_mul(m4_translation(position), m4_scaling(vec3(scale, scale*1/aspect_ratio, scale*aspect_ratio)));
 	modelmatrix = m4_mul(modelmatrix, rotationmatrix);
 
+	glEnableVertexAttribArray(0);
 	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*)modelmatrix.m);
-
-	glEnableVertexAttribArray(6);
 	glBindBuffer(GL_ARRAY_BUFFER, canvas_vbo);
-	glVertexAttribPointer(6, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
 	glDrawArrays(GL_TRIANGLES, 0, 3*sizeof(screen_vertex_data)/sizeof(float));
-	glDisableVertexAttribArray(6);
+	glDisableVertexAttribArray(0);
 }
 
 void
@@ -1820,7 +1754,7 @@ render_frame(int w,
 		// TODO: need a depth attachment for depth test when rendering to fbo
 	}
 
-	glClearColor(.0f, 0.0f, 0.2f, 1.0f);
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 
@@ -1828,65 +1762,46 @@ render_frame(int w,
 	glBindVertexArray(VAO);
 
 	int modelLoc = glGetUniformLocation(shader_program_id, "model");
-	int colorLoc = glGetUniformLocation(shader_program_id, "uniformColor");
+	GLuint textureID = glGetUniformLocation(shader_program_id, "textureSampler");
 	int viewLoc = glGetUniformLocation(shader_program_id, "view");
 	glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (float*)viewmatrix.m);
 	int projLoc = glGetUniformLocation(shader_program_id, "proj");
 	glUniformMatrix4fv(projLoc, 1, GL_FALSE, (float*)projectionmatrix.m);
 
-
-	float dist = 1.5f;
-	float height = 0.5f;
-
-	// render scene with 4 colorful cubes
-	{
-		// the special color value (0, 0, 0) will get replaced by some UV color in the shader
-		glUniform3f(colorLoc, 0.0, 0.0, 0.0);
-
-		double display_time_seconds = ((double)predictedDisplayTime) / (1000. * 1000. * 1000.);
-		const float rotations_per_sec = .25;
-		float angle = ((long)(display_time_seconds * 360. * rotations_per_sec)) % 360;
-
-		render_rotated_cube(vec3(0, height, -dist), .33f, angle, projectionmatrix.m, modelLoc);
-		render_rotated_cube(vec3(0, height, dist), .33f, angle, projectionmatrix.m, modelLoc);
-		render_rotated_cube(vec3(dist, height, 0), .33f, angle, projectionmatrix.m, modelLoc);
-		render_rotated_cube(vec3(-dist, height, 0), .33f, angle, projectionmatrix.m, modelLoc);
-	}
-
 	//render image in front
 	bool render_image = true;
 	if(render_image) {
 
-		render_screen_canvas(vec3(0, 0, 0), 0.0, projectionmatrix.m, modelLoc);
+		render_screen_canvas(vec3(0, 0, -1), 0.0, (float)640/480, 0.66, projectionmatrix.m, modelLoc);
 
-		/*
 		//Retrieve buffer
 		struct buffer latest_buf = camera_buf_get_last();
-		time_t endWait = time(NULL) + 1;
-		while((latest_buf.ready == 0)) {
+		struct buffer previous_buf = camera_buf_get_previous();
+		clock_t startTime = clock();
+		time_t endWait = startTime + (CLOCKS_PER_SEC*0.125);
+		while(latest_buf.ready == 0) {
 			//Wait until the buffer is ready
 			printf("Buffer not ready. Waiting...\n");
-			if((time(NULL) < endWait)) {
+			if((clock() > endWait)) {
 				printf("New buffer timeout reached. Using previous buffer.\n");
-				latest_buf = camera_buf_get_previous();
 				break;
 			}
 		}
-		*/
+
+		if(latest_buf.ready == 0) latest_buf = previous_buf;
 		//Debug for checking image buffer
 		//printf("Buffer ready;\n");
 		//printf("Length: %lu\n", (long unsigned int)latest_buf.length);
-
 		int framebuffer_width = latest_buf.screen_width;
 		int framebuffer_height = latest_buf.screen_height;
-		/*
+		printf("pretexture\n");
 		//Set texture
-		glBindTexture(GL_TEXTURE_2D, imageTextureID);
+		glBindTexture(GL_TEXTURE_2D, textureID);
 		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, latest_buf.start);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glBindTexture(GL_TEXTURE_2D, 0);
-		*/
+		printf("textured\n");
 		//Bind image FBO and update it with current image. Draw buffer is 0 (default)
 		//glBindFramebuffer(GL_READ_FRAMEBUFFER, imageFBO);
 		//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
@@ -1895,6 +1810,7 @@ render_frame(int w,
 
 	}
 
+	/*
 	// render controllers
 	for (int hand = 0; hand < 2; hand++) {
 		if (hand == 0) {
@@ -1915,7 +1831,7 @@ render_frame(int w,
 		render_block(&hand_locations[hand].pose.position, &hand_locations[hand].pose.orientation,
 		             &scale, modelLoc);
 	}
-
+	*/
 
 	// blit left eye to desktop window
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);

@@ -5,11 +5,11 @@ layout(location = 0) in vec3 aPos;
 layout(location = 2) uniform mat4 model;
 layout(location = 3) uniform mat4 view;
 layout(location = 4) uniform mat4 proj;
-layout(location = 5) in vec2 aColor;
-layout(location = 6) in vec3 canvas_position;
-out vec2 vertexColor;
+layout(location = 5) in vec2 vertexUV;
+
+out vec2 UV;
 
 void main() {
     gl_Position = proj * view * model * vec4(aPos.x, aPos.y, aPos.z, 1.0);
-    vertexColor = aColor;    
+    UV = vertexUV;    
 }
