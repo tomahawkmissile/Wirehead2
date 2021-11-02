@@ -333,13 +333,15 @@ int
 init_gl(uint32_t view_count,
         uint32_t* swapchain_lengths,
         GLuint*** framebuffers,
-        GLuint* shader_program_id,
+        GLuint** shader_program_id,
+		int shader_program_length,
         GLuint* VAO);
 
 void
 render_frame(int w,
              int h,
-             GLuint shader_program_id,
+             GLuint** shader_program_id,
+			 int shader_program_length,
              GLuint VAO,
              XrTime predictedDisplayTime,
              int view_index,
@@ -561,11 +563,14 @@ main(int argc, char** argv)
 		float near_z;
 		float far_z;
 
-		GLuint shader_program_id;
+		GLuint* shader_program_id;
+		int shader_program_length;
 		GLuint VAO;
 	} gl_rendering;
 	gl_rendering.near_z = 0.01f;
 	gl_rendering.far_z = 100.0f;
+	gl_rendering.shader_program_length = 1;
+	gl_rendering.shader_program_id = (GLuint*)malloc(sizeof(GLuint)*gl_rendering.shader_program_length); //begin with 1 shader program ID
 
 
 	// reuse this variable for all our OpenXR return codes
@@ -1086,7 +1091,7 @@ main(int argc, char** argv)
 
 	// Set up rendering (compile shaders, ...) before starting the session
 	if (init_gl(view_count, swapchain_lengths, &gl_rendering.framebuffers,
-	            &gl_rendering.shader_program_id, &gl_rendering.VAO) != 0) {
+	            &gl_rendering.shader_program_id, gl_rendering.shader_program_length, &gl_rendering.VAO) != 0) {
 		printf("OpenGl setup failed!\n");
 		return 1;
 	}
@@ -1426,7 +1431,7 @@ main(int argc, char** argv)
 			glXMakeCurrent(graphics_binding_gl.xDisplay, graphics_binding_gl.glxDrawable,
 			               graphics_binding_gl.glxContext);
 
-			render_frame(w, h, gl_rendering.shader_program_id, gl_rendering.VAO,
+			render_frame(w, h, &gl_rendering.shader_program_id, gl_rendering.shader_program_length, gl_rendering.VAO,
 			             frame_state.predictedDisplayTime, i, hand_locations, projection_matrix,
 			             view_matrix, gl_rendering.framebuffers[i][acquired_index],
 			             images[i][acquired_index].image, depth.supported, depth_image);
@@ -1581,6 +1586,7 @@ init_sdl_window(Display** xDisplay,
 	gl_context = SDL_GL_CreateContext(desktop_window);
 
 	glEnable(GL_DEBUG_OUTPUT);
+	glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 	glDebugMessageCallback(MessageCallback, 0);
 
 	SDL_GL_SetSwapInterval(0);
@@ -1602,16 +1608,31 @@ struct buffer latest_buf;
 
 GLuint canvas_vbo;
 
-float screen_vertex_data[] = {
-					-1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 
-					-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f
+float screen_vertex_coordinate_data[] = {
+	-1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 
+	-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f
 };
+
+int checkShaderStatus(GLuint program_id) {
+	GLint shader_program_res;
+	glGetProgramiv(program_id, GL_LINK_STATUS, &shader_program_res);
+	if (!shader_program_res) {
+		char info_log[512];
+		glGetProgramInfoLog(program_id, 512, NULL, info_log);
+		printf("Shader Program failed to link: %s\n", info_log);
+		return 1;
+	} else {
+		printf("Successfully linked shader program!\n");
+	}
+	return 0;
+}
 
 int
 init_gl(uint32_t view_count,
         uint32_t* swapchain_lengths,
         GLuint*** framebuffers,
-        GLuint* shader_program_id,
+        GLuint** shader_program_id,
+		int shader_program_length,
         GLuint* VAO)
 {
 
@@ -1626,61 +1647,95 @@ init_gl(uint32_t view_count,
 		glGenFramebuffers(swapchain_lengths[i], (*framebuffers)[i]);
 	}
 
-	GLuint vertex_shader_id = glCreateShader(GL_VERTEX_SHADER);
-	const GLchar* vertex_shader_source[1];
-	char* vertexBuffer = readFromFile("../src/shader/vertex.glsl");
-	vertex_shader_source[0] = vertexBuffer;
+	//Allocate buffer for shader programs and set length
+	shader_program_length = 2; //for 2 shaders currently
+	*shader_program_id = (GLuint*)malloc(sizeof(GLuint)*shader_program_length);
 
-	// printf("Vertex Shader:\n%s\n", vertexBuffer);
-	glShaderSource(vertex_shader_id, 1, vertex_shader_source, NULL);
-	glCompileShader(vertex_shader_id);
-	int vertex_compile_res;
-	glGetShaderiv(vertex_shader_id, GL_COMPILE_STATUS, &vertex_compile_res);
-	if (!vertex_compile_res) {
-		char info_log[512];
-		glGetShaderInfoLog(vertex_shader_id, 512, NULL, info_log);
-		printf("Vertex Shader failed to compile: %s\n", info_log);
-		return 1;
-	} else {
-		printf("Successfully compiled vertex shader!\n");
+	GLuint vertex_shader_id;
+	GLuint fragment_shader_id;
+	GLuint nv12_to_rgb_shader_id;
+
+	{ //Generic vertex shader
+		vertex_shader_id = glCreateShader(GL_VERTEX_SHADER);
+		const GLchar* vertex_shader_source[1];
+		char* vertexBuffer = readFromFile("../src/shader/vertex.glsl");
+		vertex_shader_source[0] = vertexBuffer;
+
+		// printf("Vertex Shader:\n%s\n", vertexBuffer);
+		glShaderSource(vertex_shader_id, 1, vertex_shader_source, NULL);
+		glCompileShader(vertex_shader_id);
+		int vertex_compile_res;
+		glGetShaderiv(vertex_shader_id, GL_COMPILE_STATUS, &vertex_compile_res);
+		if (!vertex_compile_res) {
+			char info_log[512];
+			glGetShaderInfoLog(vertex_shader_id, 512, NULL, info_log);
+			printf("Vertex Shader failed to compile: %s\n", info_log);
+			return 1;
+		} else {
+			printf("Successfully compiled vertex shader!\n");
+		}
+	}
+	{ //Generic fragment shader
+		fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER);
+		const GLchar* fragment_shader_source[1];
+		char* fragmentBuffer = readFromFile("../src/shader/fragment.glsl");
+		fragment_shader_source[0] = fragmentBuffer;
+
+		// printf("Fragment Shader:\n%s\n", fragmentBuffer);
+		glShaderSource(fragment_shader_id, 1, fragment_shader_source, NULL);
+		glCompileShader(fragment_shader_id);
+		int fragment_compile_res;
+		glGetShaderiv(fragment_shader_id, GL_COMPILE_STATUS, &fragment_compile_res);
+		if (!fragment_compile_res) {
+			char info_log[512];
+			glGetShaderInfoLog(fragment_shader_id, 512, NULL, info_log);
+			printf("Fragment Shader failed to compile: %s\n", info_log);
+			return 1;
+		} else {
+			printf("Successfully compiled fragment shader!\n");
+		}
+	}
+	{ //Specialized NV12 to RGB24 conversion shader
+
+
+		nv12_to_rgb_shader_id = glCreateShader(GL_FRAGMENT_SHADER);
+		const GLchar* nv12_to_rgb_shader_source[1];
+		char* nv12_to_rgb_buffer = readFromFile("../src/shader/NV12_RGB.glsl");
+		nv12_to_rgb_shader_source[0] = nv12_to_rgb_buffer;
+
+		glShaderSource(nv12_to_rgb_shader_id, 1, nv12_to_rgb_shader_source, NULL);
+		glCompileShader(nv12_to_rgb_shader_id);
+		int nv12_to_rgb_compile_res;
+		glGetShaderiv(nv12_to_rgb_shader_id, GL_COMPILE_STATUS, &nv12_to_rgb_compile_res);
+		if(!nv12_to_rgb_compile_res) {
+			char info_log[512];
+			glGetShaderInfoLog(nv12_to_rgb_shader_id, 512, NULL, info_log);
+			printf("Specialized NV12 to RGB Shader failed to compile: %s\n", info_log);
+			return 1;
+		} else {
+			printf("Successfully compiled specialized NV12 to RGB shader!\n");
+		}
 	}
 
-	GLuint fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER);
-	const GLchar* fragment_shader_source[1];
-	char* fragmentBuffer = readFromFile("../src/shader/fragment.glsl");
-	fragment_shader_source[0] = fragmentBuffer;
 
-	// printf("Fragment Shader:\n%s\n", fragmentBuffer);
-	glShaderSource(fragment_shader_id, 1, fragment_shader_source, NULL);
-	glCompileShader(fragment_shader_id);
-	int fragment_compile_res;
-	glGetShaderiv(fragment_shader_id, GL_COMPILE_STATUS, &fragment_compile_res);
-	if (!fragment_compile_res) {
-		char info_log[512];
-		glGetShaderInfoLog(fragment_shader_id, 512, NULL, info_log);
-		printf("Fragment Shader failed to compile: %s\n", info_log);
-		return 1;
-	} else {
-		printf("Successfully compiled fragment shader!\n");
-	}
+	(*shader_program_id)[0] = glCreateProgram();
+	(*shader_program_id)[1] = glCreateProgram();
 
-	*shader_program_id = glCreateProgram();
-	glAttachShader(*shader_program_id, vertex_shader_id);
-	glAttachShader(*shader_program_id, fragment_shader_id);
-	glLinkProgram(*shader_program_id);
-	GLint shader_program_res;
-	glGetProgramiv(*shader_program_id, GL_LINK_STATUS, &shader_program_res);
-	if (!shader_program_res) {
-		char info_log[512];
-		glGetProgramInfoLog(*shader_program_id, 512, NULL, info_log);
-		printf("Shader Program failed to link: %s\n", info_log);
-		return 1;
-	} else {
-		printf("Successfully linked shader program!\n");
-	}
+	glAttachShader((*shader_program_id)[0], vertex_shader_id);
+	glAttachShader((*shader_program_id)[0], fragment_shader_id);
+
+	glAttachShader((*shader_program_id)[1], vertex_shader_id);
+	glAttachShader((*shader_program_id)[1], nv12_to_rgb_shader_id);
+
+	glLinkProgram((*shader_program_id)[0]);
+	glLinkProgram((*shader_program_id)[1]);
+
+	if(checkShaderStatus((*shader_program_id)[0])) return 1;
+	if(checkShaderStatus((*shader_program_id)[1])) return 1;
 
 	glDeleteShader(vertex_shader_id);
 	glDeleteShader(fragment_shader_id);
+	glDeleteShader(nv12_to_rgb_shader_id);
 
 	glGenVertexArrays(1, VAO);
 	glBindVertexArray(*VAO);
@@ -1688,23 +1743,10 @@ init_gl(uint32_t view_count,
 	//Generate canvas
 	glGenBuffers(1, &canvas_vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, canvas_vbo);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(screen_vertex_data), screen_vertex_data, GL_STATIC_DRAW);
-	glVertexAttribPointer(6, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(6);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(screen_vertex_coordinate_data), screen_vertex_coordinate_data, GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
 
-	
-
-	//Init webcam image texture and image
-	//glGenTextures(1, &imageTextureID);
-	//glBindTexture(GL_TEXTURE_2D, imageTextureID);
-
-	//glGenFramebuffers(1, &imageFBO);
-	//glBindFramebuffer(GL_READ_FRAMEBUFFER, imageFBO);
-	//glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, imageTextureID, 0);
-
-	//Unbind
-	//glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-	//glBindTexture(GL_TEXTURE_2D, 0);
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -1713,24 +1755,50 @@ init_gl(uint32_t view_count,
 	return 0;
 }
 void
-render_screen_canvas(vec3_t position, float rotation, float aspect_ratio, float scale, float* projection_matrix, int modelLoc) {
+render_screen_canvas(vec3_t position, float rotation, float aspect_ratio, float scale, float* projection_matrix, int modelLoc, GLuint program_id, struct buffer latest_buf) {
 	
+	glUseProgram(program_id);
+
+	int framebuffer_width = latest_buf.screen_width;
+	int framebuffer_height = latest_buf.screen_height;
+
 	mat4_t rotationmatrix = m4_rotation_y(degrees_to_radians(rotation));
 	mat4_t modelmatrix = m4_mul(m4_translation(position), m4_scaling(vec3(scale, scale*1/aspect_ratio, scale*aspect_ratio)));
 	modelmatrix = m4_mul(modelmatrix, rotationmatrix);
 
 	glEnableVertexAttribArray(0);
+
 	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*)modelmatrix.m);
 	glBindBuffer(GL_ARRAY_BUFFER, canvas_vbo);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
-	glDrawArrays(GL_TRIANGLES, 0, 3*sizeof(screen_vertex_data)/sizeof(float));
+
+	//Set texture
+	GLuint textureY = glGetUniformLocation(program_id, "sTextureY");
+	GLuint textureUV = glGetUniformLocation(program_id, "sTextureUV");
+	glUniform1i(textureY, 0);
+	glUniform1i(textureUV, 1);
+	
+	glActiveTexture(GL_TEXTURE0 + 0);
+	glBindTexture(GL_TEXTURE_2D, textureY);
+	glBindTexture(GL_TEXTURE_2D, textureUV);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, framebuffer_width, framebuffer_height, GL_RED, GL_UNSIGNED_BYTE, latest_buf.start);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glVertexAttribPointer(0, 2, GL_FLOAT, false, 0, screen_vertex_coordinate_data);
+	glBindTexture(GL_TEXTURE_2D, 0);
+	
+	glDrawArrays(GL_TRIANGLES, 0, 3*sizeof(screen_vertex_coordinate_data)/sizeof(float));
+
 	glDisableVertexAttribArray(0);
 }
 
 void
 render_frame(int w,
              int h,
-             GLuint shader_program_id,
+             GLuint** shader_program_id,
+			 int shader_program_length,
              GLuint VAO,
              XrTime predictedDisplayTime,
              int view_index,
@@ -1758,22 +1826,20 @@ render_frame(int w,
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 
-	glUseProgram(shader_program_id);
+	glUseProgram((*shader_program_id)[0]);
 	glBindVertexArray(VAO);
 
-	int modelLoc = glGetUniformLocation(shader_program_id, "model");
-	GLuint textureID = glGetUniformLocation(shader_program_id, "textureSampler");
-	int viewLoc = glGetUniformLocation(shader_program_id, "view");
+	//Generic vertex and fragment shader vars
+	int modelLoc = glGetUniformLocation((*shader_program_id)[0], "model");
+	GLuint textureID = glGetUniformLocation((*shader_program_id)[0], "textureSampler");
+	int viewLoc = glGetUniformLocation((*shader_program_id)[0], "view");
 	glUniformMatrix4fv(viewLoc, 1, GL_FALSE, (float*)viewmatrix.m);
-	int projLoc = glGetUniformLocation(shader_program_id, "proj");
+	int projLoc = glGetUniformLocation((*shader_program_id)[0], "proj");
 	glUniformMatrix4fv(projLoc, 1, GL_FALSE, (float*)projectionmatrix.m);
 
 	//render image in front
-	bool render_image = true;
+	bool render_image = true; //for debug purposes, to turn off canvas
 	if(render_image) {
-
-		//Render the canvas to paint to
-		render_screen_canvas(vec3(0, 0, -1), 0.0, (float)640/480, 0.66, projectionmatrix.m, modelLoc);
 
 		//Retrieve buffer
 		struct buffer latest_buf = camera_buf_get_last();
@@ -1782,7 +1848,7 @@ render_frame(int w,
 		time_t endWait = startTime + (CLOCKS_PER_SEC*0.25);
 		while(latest_buf.ready == 0) {
 			//Wait until the buffer is ready
-			printf("[DEBUG] Buffer not ready. Waiting...\n");
+			//printf("[DEBUG] Buffer not ready. Waiting...\n");
 			if((clock() > endWait)) {
 				printf("[WARN] New buffer timeout reached. Using previous buffer.\n");
 				break;
@@ -1791,8 +1857,7 @@ render_frame(int w,
 
 		if(latest_buf.ready == 0) latest_buf = previous_buf; //If latest buffer is not ready, use the previous one
 		if(latest_buf.ready == 1) { //Now that we have the ready buffer, if it still is not ready (usually this only occurs on startup), pass this code block and wait for next loop iteration
-			int framebuffer_width = latest_buf.screen_width;
-			int framebuffer_height = latest_buf.screen_height;
+
 			printf("[DEBUG] -------\n");
 			printf("[DEBUG] Buffer stats:\n");
 			printf("[DEBUG] Width: %lu\n", latest_buf.screen_width);
@@ -1801,18 +1866,11 @@ render_frame(int w,
 			printf("[DEBUG] Ready: "); printf(latest_buf.ready ? "true\n" : "false\n");
 			printf("[DEBUG] -------\n");
 
-			//Set texture
-			glBindTexture(GL_TEXTURE_2D, textureID);
-			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, latest_buf.start); //<-- segfault here 
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-			glBindTexture(GL_TEXTURE_2D, 0);
+			//Render the canvas to paint to
+			glUseProgram((*shader_program_id)[1]);	
+			render_screen_canvas(vec3(0, 0, -1), 0.0, (float)640/480, 0.66, projectionmatrix.m, modelLoc, (*shader_program_id)[0], latest_buf);
+			glUseProgram((*shader_program_id)[0]);		
 
-			//Bind image FBO and update it with current image. Draw buffer is 0 (default)
-			//glBindFramebuffer(GL_READ_FRAMEBUFFER, imageFBO);
-			//glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-			//glBlitFramebuffer(0, 0, framebuffer_width, framebuffer_height, 0, 0, framebuffer_width, framebuffer_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
-			//glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 		} else {
 			printf("[WARN] Buffer is still not ready. Skipping this iteration...\n");
 		}
