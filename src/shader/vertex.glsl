@@ -13,3 +13,4 @@ void main() {
     gl_Position = proj * view * model * vec4(aPos.x, aPos.y, aPos.z, 1.0);
     UV = vertexUV;
 }
+

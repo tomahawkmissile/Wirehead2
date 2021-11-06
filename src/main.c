@@ -1610,7 +1610,7 @@ struct buffer latest_buf;
 
 GLuint canvas_vbo;
 
-static GLuint nv12_textures[2];
+static GLuint nv12_textures[3];
 
 float screen_vertex_coordinate_data[] = {
 	-1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 
@@ -1659,6 +1659,10 @@ struct buffer getBufferForceWait(float seconds) {
 		}
 	}
 	return latest_buf;
+}
+
+void initTextures() {
+	glGenTextures(3, &nv12_textures[0]);
 }
 
 int
@@ -1766,7 +1770,7 @@ init_gl(uint32_t view_count,
 		if(!nv12_to_rgb_compile_res) {
 			char info_log[512];
 			glGetShaderInfoLog(nv12_to_rgb_fragment_shader_id, 512, NULL, info_log);
-			printf("Specialized NV12 to RGB Shader failed to compile: %s\n", info_log);
+			printf("Specialized NV12 to RGB Fragment Shader failed to compile: %s\n", info_log);
 			return 1;
 		} else {
 			printf("Successfully compiled specialized NV12 to RGB shader!\n");
@@ -1803,10 +1807,7 @@ init_gl(uint32_t view_count,
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
 	
-	glGenTextures(2, &nv12_textures[0]);
-	struct buffer current_framebuffer = getBufferForceWait(10.0);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, current_framebuffer.screen_width, current_framebuffer.screen_height, GL_RED, GL_UNSIGNED_BYTE, latest_buf.start);
-	printf("Initiated texture with framebuffer dimensions %ix%i\n", current_framebuffer.screen_width, current_framebuffer.screen_height);
+	initTextures();
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -1819,46 +1820,57 @@ void
 render_screen_canvas(vec3_t position, float rotation, float aspect_ratio, float scale, float* projection_matrix, int modelLoc, GLuint program_id, struct buffer latest_buf) {
 	
 	glUseProgram(program_id);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 	int framebuffer_width = latest_buf.screen_width;
 	int framebuffer_height = latest_buf.screen_height;
+	
+	//Set texture
+	GLuint textureYUV[3] = { glGetUniformLocation(program_id, "sTextureY"), glGetUniformLocation(program_id, "sTextureU"), glGetUniformLocation(program_id, "sTextureV") };
+	
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, nv12_textures[0]);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
+    glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, framebuffer_width, framebuffer_height, 0, GL_RED, GL_UNSIGNED_BYTE, latest_buf.start);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, nv12_textures[1]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, framebuffer_width/2, framebuffer_height/2, 0, GL_RED, GL_UNSIGNED_BYTE, latest_buf.start + framebuffer_width/2 * framebuffer_height/2);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, nv12_textures[2]);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, framebuffer_width/2, framebuffer_height/2, 0, GL_RED, GL_UNSIGNED_BYTE, latest_buf.start + framebuffer_width/2 * framebuffer_height/2 * 5/4);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+	glUniform1i(textureYUV[0], 0);
+	glUniform1i(textureYUV[1], 1);
+	glUniform1i(textureYUV[2], 2);
+
+	glEnableVertexAttribArray(0);
 
 	mat4_t rotationmatrix = m4_rotation_y(degrees_to_radians(rotation));
 	mat4_t modelmatrix = m4_mul(m4_translation(position), m4_scaling(vec3(scale, scale*1/aspect_ratio, scale*aspect_ratio)));
 	modelmatrix = m4_mul(modelmatrix, rotationmatrix);
-
-	glEnableVertexAttribArray(0);
-
-	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*)modelmatrix.m);
+	
+	//glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*)modelmatrix.m);
 	glBindBuffer(GL_ARRAY_BUFFER, canvas_vbo);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
 	glDrawArrays(GL_TRIANGLES, 0, 3*sizeof(screen_vertex_coordinate_data)/sizeof(float));
-
-	/*
-	//Set texture
-	GLuint textureYUV[2] = { glGetUniformLocation(program_id, "sTextureY"), glGetUniformLocation(program_id, "sTextureUV") };
-	
-	for(int i=0;i<sizeof(nv12_textures)/sizeof(GLuint);i++) {
-		glActiveTexture(GL_TEXTURE0 + i);
-		glBindTexture(GL_TEXTURE_2D, nv12_textures[i]);
-		glUniform1i(textureYUV[i], i);
-		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, framebuffer_width, framebuffer_height, GL_RED, GL_UNSIGNED_BYTE, latest_buf.start);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glVertexAttribPointer(0, 2, GL_FLOAT, false, 0, screen_vertex_coordinate_data);
-		//glBindTexture(GL_TEXTURE_2D, 0);
-	}
-	*/
-	
-	
-	glBindTexture(GL_TEXTURE_2D, glGetUniformLocation(program_id, "textureSampler"));
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, latest_buf.start); //<-- segfault here 
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glBindTexture(GL_TEXTURE_2D, 0);
-	
 
 	glDisableVertexAttribArray(0);
 }
@@ -1924,9 +1936,8 @@ render_frame(int w,
 			printf("[DEBUG] Ready: "); printf(latest_buf.ready ? "true\n" : "false\n");
 			printf("[DEBUG] -------\n");
 
-			//Render the canvas to paint to
-			glUseProgram((*shader_program_id)[1]);	
-			render_screen_canvas(vec3(0, 0, -1), 0.0, (float)640/480, 0.66, projectionmatrix.m, modelLoc, (*shader_program_id)[0], latest_buf);
+			//Render the canvas to paint to	
+			render_screen_canvas(vec3(0, 0, -5), 0.0, (float)640/480, 0.66, projectionmatrix.m, modelLoc, (*shader_program_id)[1], latest_buf);
 			glUseProgram((*shader_program_id)[0]);		
 
 		} else {

@@ -30,13 +30,13 @@ char* readFromFile(const char* fname) {
     }
     return buffer;
 }
-char *trim(char *s) {
-    char *ptr;
-    if (!s)
-        return NULL;   // handle NULL string
-    if (!*s)
-        return s;      // handle empty string
-    for (ptr = s + strlen(s) - 1; (ptr >= s) && isspace(*ptr); --ptr);
-    ptr[1] = '\0';
-    return s;
+char* trim (char *s)
+{
+    char* newStr = malloc(strlen(s)*sizeof(char));
+    int i;
+    while (isspace (*s)) s++;   // skip left side white spaces
+    for (i = strlen (s) - 1; (isspace (s[i])); i--) ;   // skip right side white spaces
+    s[i + 1] = '\0';
+    memcpy(newStr, s, strlen(s));
+    return newStr;
 }
