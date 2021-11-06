@@ -356,7 +356,6 @@ render_frame(int w,
 // =============================================================================
 
 
-
 // true if XrResult is a success code, else print error message and return false
 bool
 xr_check(XrInstance instance, XrResult result, const char* format, ...)
@@ -487,6 +486,9 @@ load_extension_function_pointers(XrInstance instance)
 	return true;
 }
 
+//Global XR variables
+XrInstance instance;
+
 int
 main(int argc, char** argv)
 {
@@ -509,7 +511,7 @@ main(int argc, char** argv)
 	XrSpace play_space = XR_NULL_HANDLE;
 
 	// the instance handle can be thought of as the basic connection to the OpenXR runtime
-	XrInstance instance = XR_NULL_HANDLE;
+	instance = XR_NULL_HANDLE;
 	// the system represents an (opaque) set of XR devices in use, managed by the runtime
 	XrSystemId system_id = XR_NULL_SYSTEM_ID;
 	// the session deals with the renderloop submitting frames to the runtime
@@ -1608,6 +1610,8 @@ struct buffer latest_buf;
 
 GLuint canvas_vbo;
 
+static GLuint nv12_textures[2];
+
 float screen_vertex_coordinate_data[] = {
 	-1.0f, -1.0f, -1.0f, 1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, 
 	-1.0f, -1.0f, -1.0f, 1.0f, 1.0f, -1.0f, -1.0f, 1.0f, -1.0f
@@ -1627,6 +1631,36 @@ int checkShaderStatus(GLuint program_id) {
 	return 0;
 }
 
+struct buffer getBuffer() {
+	struct buffer latest_buf = camera_buf_get_last();
+	struct buffer previous_buf = camera_buf_get_previous();
+	clock_t startTime = clock();
+	time_t endWait = startTime + (CLOCKS_PER_SEC*0.25);
+	while(camera_buf_rdy() == 0) {
+		//Wait until the buffer is ready
+		//printf("[DEBUG] Buffer not ready. Waiting...\n");
+		if((clock() > endWait)) {
+			printf("[WARN] New buffer timeout reached. Using previous buffer.\n");
+			return previous_buf;
+			break;
+		}
+	}
+	return latest_buf;
+}
+struct buffer getBufferForceWait(float seconds) {
+	struct buffer latest_buf = camera_buf_get_last();
+	clock_t startTime = clock();
+	time_t endWait = startTime + (CLOCKS_PER_SEC*seconds);
+	while(camera_buf_rdy() == 0) { //Allow control+c
+		if((clock() > endWait)) {
+			printf("[WARN] New buffer forced timeout reached. Exiting...\n");
+			exit(1);
+			break;
+		}
+	}
+	return latest_buf;
+}
+
 int
 init_gl(uint32_t view_count,
         uint32_t* swapchain_lengths,
@@ -1635,7 +1669,6 @@ init_gl(uint32_t view_count,
 		int shader_program_length,
         GLuint* VAO)
 {
-
 	/* Allocate resources that we use for our own rendering.
 	 * We will bind framebuffers to the runtime provided textures for rendering.
 	 * For this, we create one framebuffer per OpenGL texture.
@@ -1653,12 +1686,13 @@ init_gl(uint32_t view_count,
 
 	GLuint vertex_shader_id;
 	GLuint fragment_shader_id;
-	GLuint nv12_to_rgb_shader_id;
+	GLuint nv12_to_rgb_vertex_shader_id;
+	GLuint nv12_to_rgb_fragment_shader_id;
 
 	{ //Generic vertex shader
 		vertex_shader_id = glCreateShader(GL_VERTEX_SHADER);
 		const GLchar* vertex_shader_source[1];
-		char* vertexBuffer = readFromFile("../src/shader/vertex.glsl");
+		char* vertexBuffer = trim(readFromFile("../src/shader/vertex.glsl"));
 		vertex_shader_source[0] = vertexBuffer;
 
 		// printf("Vertex Shader:\n%s\n", vertexBuffer);
@@ -1676,9 +1710,10 @@ init_gl(uint32_t view_count,
 		}
 	}
 	{ //Generic fragment shader
+
 		fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER);
 		const GLchar* fragment_shader_source[1];
-		char* fragmentBuffer = readFromFile("../src/shader/fragment.glsl");
+		char* fragmentBuffer = trim(readFromFile("../src/shader/fragment.glsl"));
 		fragment_shader_source[0] = fragmentBuffer;
 
 		// printf("Fragment Shader:\n%s\n", fragmentBuffer);
@@ -1695,21 +1730,42 @@ init_gl(uint32_t view_count,
 			printf("Successfully compiled fragment shader!\n");
 		}
 	}
-	{ //Specialized NV12 to RGB24 conversion shader
+	{ //Specialized NV12 to RGB24 conversion vertex shader
 
 
-		nv12_to_rgb_shader_id = glCreateShader(GL_FRAGMENT_SHADER);
+		nv12_to_rgb_vertex_shader_id = glCreateShader(GL_VERTEX_SHADER);
 		const GLchar* nv12_to_rgb_shader_source[1];
-		char* nv12_to_rgb_buffer = readFromFile("../src/shader/NV12_RGB.glsl");
+		char* nv12_to_rgb_buffer = trim(readFromFile("../src/shader/NV12_vertex.glsl"));
 		nv12_to_rgb_shader_source[0] = nv12_to_rgb_buffer;
 
-		glShaderSource(nv12_to_rgb_shader_id, 1, nv12_to_rgb_shader_source, NULL);
-		glCompileShader(nv12_to_rgb_shader_id);
+		glShaderSource(nv12_to_rgb_vertex_shader_id, 1, nv12_to_rgb_shader_source, NULL);
+		glCompileShader(nv12_to_rgb_vertex_shader_id);
 		int nv12_to_rgb_compile_res;
-		glGetShaderiv(nv12_to_rgb_shader_id, GL_COMPILE_STATUS, &nv12_to_rgb_compile_res);
+		glGetShaderiv(nv12_to_rgb_vertex_shader_id, GL_COMPILE_STATUS, &nv12_to_rgb_compile_res);
 		if(!nv12_to_rgb_compile_res) {
 			char info_log[512];
-			glGetShaderInfoLog(nv12_to_rgb_shader_id, 512, NULL, info_log);
+			glGetShaderInfoLog(nv12_to_rgb_vertex_shader_id, 512, NULL, info_log);
+			printf("Specialized NV12 to RGB Vertex Shader failed to compile: %s\n", info_log);
+			return 1;
+		} else {
+			printf("Successfully compiled specialized NV12 to RGB vertex shader!\n");
+		}
+	}
+	{ //Specialized NV12 to RGB24 conversion fragment shader
+
+
+		nv12_to_rgb_fragment_shader_id = glCreateShader(GL_FRAGMENT_SHADER);
+		const GLchar* nv12_to_rgb_shader_source[1];
+		char* nv12_to_rgb_buffer = trim(readFromFile("../src/shader/NV12_RGB.glsl"));
+		nv12_to_rgb_shader_source[0] = nv12_to_rgb_buffer;
+
+		glShaderSource(nv12_to_rgb_fragment_shader_id, 1, nv12_to_rgb_shader_source, NULL);
+		glCompileShader(nv12_to_rgb_fragment_shader_id);
+		int nv12_to_rgb_compile_res;
+		glGetShaderiv(nv12_to_rgb_fragment_shader_id, GL_COMPILE_STATUS, &nv12_to_rgb_compile_res);
+		if(!nv12_to_rgb_compile_res) {
+			char info_log[512];
+			glGetShaderInfoLog(nv12_to_rgb_fragment_shader_id, 512, NULL, info_log);
 			printf("Specialized NV12 to RGB Shader failed to compile: %s\n", info_log);
 			return 1;
 		} else {
@@ -1717,15 +1773,14 @@ init_gl(uint32_t view_count,
 		}
 	}
 
-
 	(*shader_program_id)[0] = glCreateProgram();
 	(*shader_program_id)[1] = glCreateProgram();
 
 	glAttachShader((*shader_program_id)[0], vertex_shader_id);
 	glAttachShader((*shader_program_id)[0], fragment_shader_id);
 
-	glAttachShader((*shader_program_id)[1], vertex_shader_id);
-	glAttachShader((*shader_program_id)[1], nv12_to_rgb_shader_id);
+	glAttachShader((*shader_program_id)[1], nv12_to_rgb_vertex_shader_id);
+	glAttachShader((*shader_program_id)[1], nv12_to_rgb_fragment_shader_id);
 
 	glLinkProgram((*shader_program_id)[0]);
 	glLinkProgram((*shader_program_id)[1]);
@@ -1735,7 +1790,8 @@ init_gl(uint32_t view_count,
 
 	glDeleteShader(vertex_shader_id);
 	glDeleteShader(fragment_shader_id);
-	glDeleteShader(nv12_to_rgb_shader_id);
+	glDeleteShader(nv12_to_rgb_vertex_shader_id);
+	glDeleteShader(nv12_to_rgb_fragment_shader_id);
 
 	glGenVertexArrays(1, VAO);
 	glBindVertexArray(*VAO);
@@ -1746,7 +1802,11 @@ init_gl(uint32_t view_count,
 	glBufferData(GL_ARRAY_BUFFER, sizeof(screen_vertex_coordinate_data), screen_vertex_coordinate_data, GL_STATIC_DRAW);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(0);
-
+	
+	glGenTextures(2, &nv12_textures[0]);
+	struct buffer current_framebuffer = getBufferForceWait(10.0);
+	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, current_framebuffer.screen_width, current_framebuffer.screen_height, GL_RED, GL_UNSIGNED_BYTE, latest_buf.start);
+	printf("Initiated texture with framebuffer dimensions %ix%i\n", current_framebuffer.screen_width, current_framebuffer.screen_height);
 
 	glEnable(GL_DEPTH_TEST);
 
@@ -1754,6 +1814,7 @@ init_gl(uint32_t view_count,
 
 	return 0;
 }
+
 void
 render_screen_canvas(vec3_t position, float rotation, float aspect_ratio, float scale, float* projection_matrix, int modelLoc, GLuint program_id, struct buffer latest_buf) {
 	
@@ -1771,25 +1832,33 @@ render_screen_canvas(vec3_t position, float rotation, float aspect_ratio, float 
 	glUniformMatrix4fv(modelLoc, 1, GL_FALSE, (float*)modelmatrix.m);
 	glBindBuffer(GL_ARRAY_BUFFER, canvas_vbo);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
+	glDrawArrays(GL_TRIANGLES, 0, 3*sizeof(screen_vertex_coordinate_data)/sizeof(float));
 
+	/*
 	//Set texture
-	GLuint textureY = glGetUniformLocation(program_id, "sTextureY");
-	GLuint textureUV = glGetUniformLocation(program_id, "sTextureUV");
-	glUniform1i(textureY, 0);
-	glUniform1i(textureUV, 1);
+	GLuint textureYUV[2] = { glGetUniformLocation(program_id, "sTextureY"), glGetUniformLocation(program_id, "sTextureUV") };
 	
-	glActiveTexture(GL_TEXTURE0 + 0);
-	glBindTexture(GL_TEXTURE_2D, textureY);
-	glBindTexture(GL_TEXTURE_2D, textureUV);
-	glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, framebuffer_width, framebuffer_height, GL_RED, GL_UNSIGNED_BYTE, latest_buf.start);
+	for(int i=0;i<sizeof(nv12_textures)/sizeof(GLuint);i++) {
+		glActiveTexture(GL_TEXTURE0 + i);
+		glBindTexture(GL_TEXTURE_2D, nv12_textures[i]);
+		glUniform1i(textureYUV[i], i);
+		glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, framebuffer_width, framebuffer_height, GL_RED, GL_UNSIGNED_BYTE, latest_buf.start);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glVertexAttribPointer(0, 2, GL_FLOAT, false, 0, screen_vertex_coordinate_data);
+		//glBindTexture(GL_TEXTURE_2D, 0);
+	}
+	*/
+	
+	
+	glBindTexture(GL_TEXTURE_2D, glGetUniformLocation(program_id, "textureSampler"));
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, framebuffer_width, framebuffer_height, 0, GL_RGB, GL_UNSIGNED_BYTE, latest_buf.start); //<-- segfault here 
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-	glVertexAttribPointer(0, 2, GL_FLOAT, false, 0, screen_vertex_coordinate_data);
 	glBindTexture(GL_TEXTURE_2D, 0);
 	
-	glDrawArrays(GL_TRIANGLES, 0, 3*sizeof(screen_vertex_coordinate_data)/sizeof(float));
 
 	glDisableVertexAttribArray(0);
 }
@@ -1842,20 +1911,9 @@ render_frame(int w,
 	if(render_image) {
 
 		//Retrieve buffer
-		struct buffer latest_buf = camera_buf_get_last();
-		struct buffer previous_buf = camera_buf_get_previous();
-		clock_t startTime = clock();
-		time_t endWait = startTime + (CLOCKS_PER_SEC*0.25);
-		while(latest_buf.ready == 0) {
-			//Wait until the buffer is ready
-			//printf("[DEBUG] Buffer not ready. Waiting...\n");
-			if((clock() > endWait)) {
-				printf("[WARN] New buffer timeout reached. Using previous buffer.\n");
-				break;
-			}
-		}
+		struct buffer latest_buf = getBuffer();
 
-		if(latest_buf.ready == 0) latest_buf = previous_buf; //If latest buffer is not ready, use the previous one
+		if(latest_buf.ready == 0) latest_buf = camera_buf_get_previous(); //If latest buffer is not ready, use the previous one
 		if(latest_buf.ready == 1) { //Now that we have the ready buffer, if it still is not ready (usually this only occurs on startup), pass this code block and wait for next loop iteration
 
 			printf("[DEBUG] -------\n");

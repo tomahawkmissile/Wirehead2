@@ -7,5 +7,6 @@
 
 char* concat(const char *s1, const char *s2);
 char* readFromFile(const char* fname);
+char *trim(char *s);
 
 #endif
