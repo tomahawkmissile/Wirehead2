@@ -1518,6 +1518,7 @@ main(int argc, char** argv)
 
 	printf("Cleaned up!\n");
 
+	stop_camera();
 	printf("Waiting for camera thread to close...\n");
 	pthread_join(camera1_id,NULL);
 	printf("Camera closed. Exiting...\n");
@@ -1815,10 +1816,9 @@ init_gl(uint32_t view_count,
 
 	return 0;
 }
-
+static int test_ctr=0;
 void
 render_screen_canvas(vec3_t position, float rotation, float aspect_ratio, float scale, float* projection_matrix, int modelLoc, GLuint program_id, struct buffer latest_buf) {
-	
 	glUseProgram(program_id);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -1835,6 +1835,7 @@ render_screen_canvas(vec3_t position, float rotation, float aspect_ratio, float 
     glPixelStorei(GL_UNPACK_SKIP_PIXELS, 0);
     glPixelStorei(GL_UNPACK_SKIP_ROWS, 0);
 
+	printf("Frame: %i\n", test_ctr);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, framebuffer_width, framebuffer_height, 0, GL_RED, GL_UNSIGNED_BYTE, latest_buf.start);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
@@ -1873,6 +1874,8 @@ render_screen_canvas(vec3_t position, float rotation, float aspect_ratio, float 
 	glDrawArrays(GL_TRIANGLES, 0, 3*sizeof(screen_vertex_coordinate_data)/sizeof(float));
 
 	glDisableVertexAttribArray(0);
+
+	test_ctr++;
 }
 
 void
@@ -1925,9 +1928,12 @@ render_frame(int w,
 		//Retrieve buffer
 		struct buffer latest_buf = getBuffer();
 
-		if(latest_buf.ready == 0) latest_buf = camera_buf_get_previous(); //If latest buffer is not ready, use the previous one
+		if(latest_buf.ready == 0) {
+			latest_buf = camera_buf_get_previous(); //If latest buffer is not ready, use the previous one
+			printf("[WARN] Buffer is not ready. Using previous.\n");
+		}
 		if(latest_buf.ready == 1) { //Now that we have the ready buffer, if it still is not ready (usually this only occurs on startup), pass this code block and wait for next loop iteration
-
+			/*
 			printf("[DEBUG] -------\n");
 			printf("[DEBUG] Buffer stats:\n");
 			printf("[DEBUG] Width: %lu\n", latest_buf.screen_width);
@@ -1935,9 +1941,9 @@ render_frame(int w,
 			printf("[DEBUG] Length: %zu\n", latest_buf.length);
 			printf("[DEBUG] Ready: "); printf(latest_buf.ready ? "true\n" : "false\n");
 			printf("[DEBUG] -------\n");
-
+			*/
 			//Render the canvas to paint to	
-			render_screen_canvas(vec3(0, 0, -5), 0.0, (float)640/480, 0.66, projectionmatrix.m, modelLoc, (*shader_program_id)[1], latest_buf);
+			render_screen_canvas(vec3(0, 0, -20 /*-5*/), 0.0, (float)640/480, 0.66, projectionmatrix.m, modelLoc, (*shader_program_id)[1], latest_buf);
 			glUseProgram((*shader_program_id)[0]);		
 
 		} else {

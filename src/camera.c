@@ -17,7 +17,12 @@ static unsigned int     n_buffers;
 static int		out_buf=0;
 static int      write_file=0;
 static int              force_format;
-static int              frame_count = 100;
+static int              frame_count = 1;
+
+bool stopV4L2Stream = false;
+void stop_camera() {
+	stopV4L2Stream = true;
+}
 
 bool camera_buf_rdy() {
 	return buffers[n_buffers-1].ready;
@@ -62,6 +67,7 @@ static void process_image(const void *p, int size)
 	//TODO: change this to get it from V4L2
 	buffers[n_buffers-1].screen_width=640;
 	buffers[n_buffers-1].screen_height=480;
+	buffers[n_buffers-1].length = size;
 
     if (write_file) {
 		char num_str[10];
@@ -181,7 +187,7 @@ static void mainloop(void)
 
 	count = frame_count;
 
-	while (count-- > 0) {
+	while (!stopV4L2Stream) {
 		for (;;) {
 			fd_set fds;
 			struct timeval tv;
@@ -328,7 +334,7 @@ static void init_mmap(void)
 
 	CLEAR(req);
 
-	req.count = 4;
+	req.count = 2;
 	req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	req.memory = V4L2_MEMORY_MMAP;
 
