@@ -1,6 +1,8 @@
 # Wirehead 2
 ### Experimental VR Application
 
+### Archived - Please see https://github.com/tomahawkmissile/Wirehead3 for the latest code
+
 How to start services and initialize VR headset:
 - Start a screen
 - Enter: ```Xorg -config ./xorg.conf.offscreen :10```
